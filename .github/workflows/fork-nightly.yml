@@ -72,13 +72,14 @@ jobs:
       - name: Install browser and native build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y patchelf
+          sudo apt-get install -y patchelf libsecret-1-dev
           (cd apps/web && vp exec playwright install --with-deps chromium --only-shell)
       - name: Check fork changes
         run: |
           vp fmt --check apps/web/src/hooks/useProjectTheme.ts apps/web/src/hooks/useTheme.ts apps/web/src/hooks/useTheme.test.ts apps/web/src/hooks/useTheme.browser.test.tsx apps/web/src/components/settings/ProjectThemeSettings.tsx
           vp run --filter @t3tools/contracts --filter @t3tools/shared --filter @t3tools/web typecheck
           vp test run packages/contracts/src/settings.test.ts packages/shared/src/projectSettings.test.ts apps/web/src/hooks/useTheme.test.ts apps/web/src/hooks/useTheme.browser.test.tsx apps/web/src/components/settings/ProjectSettingsPanel.browser.test.tsx
+          vp test run scripts/build-desktop-artifact.test.ts
       - name: Build production bundles and WSL runtime
         run: |
           node scripts/update-release-package-versions.ts "$APP_VERSION"

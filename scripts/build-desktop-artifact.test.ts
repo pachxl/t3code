@@ -958,12 +958,17 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   // The fixture's t3code.exe is a text placeholder, not an executable. These
   // cases reach the native-load probe, so pin only that host-platform check to
   // Linux. Host-native paths and the real Windows tar/archive checks still run.
-  it.effect("validates every ASAR-unpacked native in the packaged Windows payload", () =>
+  it.effect.each([0, 84])("validates Windows natives with %s prepared cache files", (cacheFiles) =>
     Effect.scoped(
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const fixture = yield* makeWindowsPayloadFixture({ copyUnpackedNatives: true });
+        const cacheDir = path.join(fixture.packagedAppDir, "resources/server-compile-cache");
+        yield* fs.makeDirectory(cacheDir, { recursive: true });
+        for (let index = 0; index < cacheFiles; index++) {
+          yield* fs.writeFileString(path.join(cacheDir, String(index)), "prepared-code");
+        }
         const result = yield* validateWindowsPackagedPayload({
           stageDistDir: fixture.stageDistDir,
           appExecutableName: fixture.appExecutableName,
