@@ -53,7 +53,7 @@ jobs:
             exit "$merge_status"
           fi
           ref=$(git rev-parse HEAD)
-          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq '.[0].body // ""')
+          previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=30" --jq '[.[] | select(.draft == false)][0].body // ""')
           if [[ "$previous" == *"Upstream nightly: $upstream"* && "$previous" == *"Fork source: $ref"* ]]; then
             echo 'build=false' >> "$GITHUB_OUTPUT"
             exit 0
@@ -63,6 +63,7 @@ jobs:
           version="${raw%.*}.$(( ${raw##*.} * 1000000 + GITHUB_RUN_NUMBER ))"
           git tag "v$version" "$ref"
           git push origin "refs/tags/v$version"
+          gh release create "v$version" --verify-tag --draft --prerelease --title "T3 Code fork $version" --notes "Upstream nightly: $upstream. Fork source: $ref. Build in progress."
           echo 'build=true' >> "$GITHUB_OUTPUT"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -162,5 +163,7 @@ jobs:
           Get-ChildItem release/*.exe,release/*.blockmap,release/*.yml,wsl-runtime/*.tar.gz | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content release/SHA256SUMS.txt
           @("Windows x64 personal fork with project themes and upstream nightly updates.", '', "Upstream nightly: $env:UPSTREAM_NIGHTLY", "Fork source: $env:FORK_SOURCE", '', 'Uses the existing T3 home and production desktop profile. Local state and credentials are never uploaded.') | Set-Content release-notes.txt
           $assets = (Get-ChildItem release/*.exe,release/*.blockmap,release/*.yml,release/SHA256SUMS.txt,wsl-runtime/*.tar.gz).FullName
-          gh release create "v$env:APP_VERSION" @assets --verify-tag --title "T3 Code fork $env:APP_VERSION" --notes-file release-notes.txt --prerelease
+          gh release upload "v$env:APP_VERSION" @assets --clobber
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          gh release edit "v$env:APP_VERSION" --draft=false --title "T3 Code fork $env:APP_VERSION" --notes-file release-notes.txt --prerelease
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
