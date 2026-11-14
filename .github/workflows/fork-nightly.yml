@@ -39,7 +39,19 @@ jobs:
           git fetch --no-tags --quiet upstream "refs/tags/$upstream:refs/tags/$upstream"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --no-edit "$upstream"
+          merge_status=0
+          git merge --no-ff --no-commit "$upstream" || merge_status=$?
+          # Keep this fork's workflows; GITHUB_TOKEN cannot publish upstream workflow edits.
+          git restore --source=HEAD --staged --worktree -- .github/workflows
+          if [[ -n "$(git diff --name-only --diff-filter=U)" ]]; then
+            git diff --name-only --diff-filter=U
+            exit 1
+          fi
+          if git rev-parse --quiet --verify MERGE_HEAD >/dev/null; then
+            git commit --no-edit
+          elif (( merge_status != 0 )); then
+            exit "$merge_status"
+          fi
           ref=$(git rev-parse HEAD)
           previous=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=1" --jq '.[0].body // ""')
           if [[ "$previous" == *"Upstream nightly: $upstream"* && "$previous" == *"Fork source: $ref"* ]]; then
