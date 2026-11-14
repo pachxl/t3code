@@ -43,6 +43,33 @@ const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const encodeServerSettingsPatch = Schema.encodeSync(ServerSettingsPatch);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
+it("round-trips project theme overrides and accepts returning to the global theme", () => {
+  const projectTheme = {
+    theme: "grove",
+    appearanceMode: "system",
+    themeHalves: { dark: "ocean" },
+  };
+  const patch = { projectSettingsOverrides: { project: { projectTheme } } };
+  expect(decodeClientServerSettingsPatch(patch)).toEqual(patch);
+  const settings = decodeServerSettings(patch);
+  expect(decodeServerSettings(encodeServerSettings(settings)).projectSettingsOverrides).toEqual(
+    patch.projectSettingsOverrides,
+  );
+  expect(decodeServerSettings({}).projectTheme).toBeNull();
+  expect(
+    decodeClientServerSettingsPatch({
+      projectSettingsOverrides: { project: { projectTheme: null } },
+    }),
+  ).toEqual({ projectSettingsOverrides: { project: { projectTheme: null } } });
+  expect(() =>
+    decodeClientServerSettingsPatch({
+      projectSettingsOverrides: {
+        project: { projectTheme: { ...projectTheme, appearanceMode: "invalid" } },
+      },
+    }),
+  ).toThrow();
+});
+
 it("drops theme defaults from a client's settings patch", () => {
   expect(
     decodeClientServerSettingsPatch({

@@ -107,7 +107,9 @@ function ThemeLibraryCard({
   onDownload,
   onRemove,
   variantNavigation,
+  compact = false,
 }: {
+  compact?: boolean;
   theme: ThemeCardDefinition;
   isActive: boolean;
   onUse: () => void;
@@ -310,7 +312,7 @@ function ThemeLibraryCard({
                   </button>
                 </div>
               </div>
-              {onEdit || onDuplicate || onDownload || onRemove ? (
+              {!compact && (onEdit || onDuplicate || onDownload || onRemove) ? (
                 <div className="flex shrink-0 items-center gap-1">
                   {onDuplicate ? (
                     <Tooltip>
@@ -424,7 +426,9 @@ function CustomThemeCollectionCard({
   onEdit,
   onDownload,
   onRemove,
+  compact = false,
 }: {
+  compact?: boolean;
   themes: ReadonlyArray<ThemeDefinition>;
   activeModesFor: (themeId: string) => ReadonlyArray<ThemeMode>;
   onUse: (theme: ThemeDefinition) => void;
@@ -460,6 +464,7 @@ function CustomThemeCollectionCard({
 
   return (
     <ThemeLibraryCard
+      compact={compact}
       activeModes={activeModesFor(theme.id)}
       isActive={false}
       onDownload={() => onDownload(theme)}
@@ -506,7 +511,11 @@ export function ThemeLibrary({
   onImportOpenChange,
   themeHalves,
   setThemeHalf,
+  compact = false,
+  readHalves = readThemeHalvesRaw,
 }: {
+  compact?: boolean;
+  readHalves?: () => ThemeHalves;
   theme: string;
   setTheme: (theme: string) => boolean;
   appearanceMode: ThemeMode;
@@ -576,7 +585,7 @@ export function ThemeLibrary({
     const removesBase = removedIds.has(getThemeDefinition(theme)?.id ?? "");
     // Read raw halves before persistTheme clears them; themeHalves omits published themes not yet streamed
     // in.
-    const storedHalves = readThemeHalvesRaw();
+    const storedHalves = readHalves();
     if (removesBase && !persistTheme(appearanceMode === "system" ? "system" : appearanceMode)) {
       return;
     }
@@ -608,7 +617,7 @@ export function ThemeLibrary({
     if (cardId === null && baseCardId !== null) {
       // Read raw before persistTheme clears the mix; unstreamed published halves must not fall back to the
       // base.
-      const otherOwner = readThemeHalvesRaw()[otherAppearance] ?? baseCardId;
+      const otherOwner = readHalves()[otherAppearance] ?? baseCardId;
       if (!persistTheme(appearanceMode === "system" ? "system" : appearanceMode)) return;
       if (!setThemeHalf(otherAppearance, otherOwner)) {
         setTheme(theme);
@@ -656,7 +665,7 @@ export function ThemeLibrary({
 
   const renderWireframe = (mode: ThemeMode) => (
     <ThemeWireframe
-      className="h-[8.75rem]"
+      className={compact ? "h-20" : "h-[8.75rem]"}
       panes={
         mode === "system"
           ? [
@@ -720,10 +729,13 @@ export function ThemeLibrary({
     <TooltipProvider>
       <div
         className="grid w-full gap-2"
-        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))" }}
+        style={{
+          gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${compact ? 12 : 16}rem), 1fr))`,
+        }}
       >
         {STANDARD_THEME_CARDS.map((standardTheme) => (
           <ThemeLibraryCard
+            compact={compact}
             activeModes={pickedModesFor(null)}
             isActive={false}
             key={standardTheme.id}
@@ -744,6 +756,7 @@ export function ThemeLibrary({
           const card = getThemeCardDefinition(maintainerTheme);
           return (
             <ThemeLibraryCard
+              compact={compact}
               activeModes={pickedModesFor(maintainerTheme.id)}
               isActive={false}
               key={maintainerTheme.id}
@@ -768,6 +781,7 @@ export function ThemeLibrary({
           )
           .map((environmentTheme) => (
             <ThemeLibraryCard
+              compact={compact}
               activeModes={pickedModesFor(environmentTheme.id)}
               isActive={false}
               key={environmentTheme.id}
@@ -790,6 +804,7 @@ export function ThemeLibrary({
           ))}
         {customThemeCollections.map(([collectionId, themes]) => (
           <CustomThemeCollectionCard
+            compact={compact}
             activeModesFor={pickedModesFor}
             key={collectionId}
             onDownload={(customTheme) =>
@@ -835,27 +850,29 @@ export function ThemeLibrary({
         <h3 className="text-base font-semibold text-foreground">
           {searchableSetting("theme").title}
         </h3>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={() =>
-              openThemeEditor({
-                editingThemeId: null,
-                seedThemeId: activeThemeForAppearance?.id ?? null,
-                seedName: null,
-                initialAppearance,
-              })
-            }
-          >
-            <PaintbrushIcon />
-            Create theme
-          </Button>
-          <Button size="xs" variant="outline" onClick={() => onImportOpenChange(true)}>
-            <PlusIcon />
-            Add theme
-          </Button>
-        </div>
+        {!compact ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() =>
+                openThemeEditor({
+                  editingThemeId: null,
+                  seedThemeId: activeThemeForAppearance?.id ?? null,
+                  seedName: null,
+                  initialAppearance,
+                })
+              }
+            >
+              <PaintbrushIcon />
+              Create theme
+            </Button>
+            <Button size="xs" variant="outline" onClick={() => onImportOpenChange(true)}>
+              <PlusIcon />
+              Add theme
+            </Button>
+          </div>
+        ) : null}
       </div>
       {renderPairGrid()}
       <ThemeImportDialog

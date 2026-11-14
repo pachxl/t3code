@@ -1,5 +1,5 @@
 import { pipe } from "effect/Function";
-import type { DesktopBridge } from "@t3tools/contracts";
+import type { DesktopBridge, ProjectTheme } from "@t3tools/contracts";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import * as Schema from "effect/Schema";
 import { useSyncExternalStore } from "react";
@@ -129,6 +129,69 @@ let snapshotStale = true;
 let lastDesktopTheme: "light" | "dark" | "system" | null = null;
 let lastAppliedTheme: Omit<ThemeSnapshot, "resolvedTheme"> | null = null;
 let themeStorageReadFailure: ThemeStorageError | null = null;
+let projectThemeOverride: ProjectTheme | null = null;
+const projectThemeOverrides = new Map<
+  symbol,
+  { selection: ProjectTheme | null; priority: number }
+>();
+let projectThemeUpdateQueued = false;
+
+function scheduleProjectThemeUpdate() {
+  if (projectThemeUpdateQueued) return;
+  projectThemeUpdateQueued = true;
+  // React releases the previous view before registering its replacement in the same commit.
+  queueMicrotask(() => {
+    projectThemeUpdateQueued = false;
+    let active: { selection: ProjectTheme | null; priority: number } | undefined;
+    for (const entry of projectThemeOverrides.values()) {
+      if (!active || entry.priority >= active.priority) active = entry;
+    }
+    const next = active?.selection ?? null;
+    if (
+      projectThemeOverride?.theme === next?.theme &&
+      projectThemeOverride?.appearanceMode === next?.appearanceMode &&
+      themeHalvesSignature(projectThemeOverride?.themeHalves ?? null) ===
+        themeHalvesSignature(next?.themeHalves ?? null)
+    )
+      return;
+    projectThemeOverride = next;
+    applyTheme(getStored(), { suppressTransitions: true });
+    emitChange();
+  });
+}
+
+export function registerProjectThemeOverride(selection: ProjectTheme | null, priority = 0) {
+  const owner = Symbol();
+  projectThemeOverrides.set(owner, { selection, priority });
+  scheduleProjectThemeUpdate();
+  return () => {
+    projectThemeOverrides.delete(owner);
+    scheduleProjectThemeUpdate();
+  };
+}
+
+export function getGlobalThemeSelection(): ProjectTheme {
+  const theme = getStored();
+  return {
+    theme,
+    appearanceMode: readAppearanceModePreference(theme),
+    themeHalves: readStoredThemeHalves(),
+  };
+}
+
+function effectiveThemePreference() {
+  const selection = projectThemeOverride;
+  if (selection === null) {
+    return getGlobalThemeSelection();
+  }
+  return {
+    theme: isKnownThemePreference(selection.theme)
+      ? canonicalThemePreference(selection.theme)
+      : getStored(),
+    appearanceMode: selection.appearanceMode,
+    themeHalves: parseThemeHalves(JSON.stringify(selection.themeHalves)),
+  };
+}
 
 function emitChange() {
   snapshotStale = true;
@@ -308,10 +371,11 @@ function applyTheme(theme: Theme, { suppressTransitions = false, preservePreview
   if (preservePreview && document.documentElement.dataset?.themeId === THEME_PREVIEW_ID) {
     return;
   }
-  const appearanceMode = readAppearanceModePreference(theme);
+  const effective = effectiveThemePreference();
+  theme = effective.theme;
+  const { appearanceMode, themeHalves } = effective;
   const followSystem = appearanceMode === "system";
   const systemDark = followSystem ? getSystemDark() : false;
-  const themeHalves = readStoredThemeHalves();
   if (
     lastAppliedTheme?.theme === theme &&
     lastAppliedTheme.systemDark === systemDark &&
@@ -319,7 +383,7 @@ function applyTheme(theme: Theme, { suppressTransitions = false, preservePreview
     lastAppliedTheme.appearanceMode === appearanceMode &&
     themeHalvesSignature(lastAppliedTheme.themeHalves) === themeHalvesSignature(themeHalves)
   ) {
-    syncDesktopTheme(theme, followSystem, appearanceMode);
+    syncDesktopTheme(theme, followSystem, appearanceMode, themeHalves);
     return;
   }
 
@@ -337,7 +401,7 @@ function applyTheme(theme: Theme, { suppressTransitions = false, preservePreview
   document.documentElement.classList.toggle("dark", resolvedAppearance === "dark");
   lastAppliedTheme = { theme, systemDark, followSystem, appearanceMode, themeHalves };
   syncBrowserChromeTheme();
-  syncDesktopTheme(theme, followSystem, appearanceMode);
+  syncDesktopTheme(theme, followSystem, appearanceMode, themeHalves);
   if (suppressTransitions) {
     // Force a reflow so the no-transitions class takes effect before removal
     void document.documentElement.offsetHeight;
@@ -365,10 +429,10 @@ function syncDesktopTheme(
   theme: Theme,
   followSystem?: boolean,
   appearanceMode?: ThemePreferenceMode,
+  halves: ThemeHalves | null = readStoredThemeHalves(),
 ) {
   if (typeof window === "undefined") return;
   const bridge = window.desktopBridge;
-  const halves = readStoredThemeHalves();
   const desktopTheme = resolveDesktopTheme(theme, followSystem, appearanceMode, halves);
   if (!bridge || typeof bridge.setTheme !== "function" || lastDesktopTheme === desktopTheme) {
     return;
@@ -400,11 +464,9 @@ function getSnapshot(): ThemeSnapshot {
   // Cache localStorage reads until signalled; useTheme calls this every render.
   if (!snapshotStale && lastSnapshot) return lastSnapshot;
   snapshotStale = false;
-  const theme = getStored();
-  const appearanceMode = readAppearanceModePreference(theme);
+  const { theme, appearanceMode, themeHalves } = effectiveThemePreference();
   const followSystem = appearanceMode === "system";
   const systemDark = followSystem ? getSystemDark() : false;
-  const themeHalves = readStoredThemeHalves();
 
   const resolvedTheme = resolveThemeAppearance(
     theme,
@@ -435,7 +497,7 @@ function getServerSnapshot() {
 
 function handleSystemAppearanceChange() {
   const storedTheme = getStored();
-  if (readAppearanceModePreference(storedTheme) === "system") {
+  if (effectiveThemePreference().appearanceMode === "system") {
     applyTheme(storedTheme, { suppressTransitions: true });
   }
   emitChange();
@@ -506,13 +568,11 @@ export function getRenderedAppearance(): ThemeAppearance {
 }
 
 export function useRenderedAppearance() {
-  const { resolvedTheme } = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const previewAppearance = useSyncExternalStore(
-    subscribeToThemePreview,
-    getThemePreviewAppearance,
-    () => null,
+  return useSyncExternalStore(
+    subscribeRenderedAppearance,
+    getRenderedAppearance,
+    () => DEFAULT_THEME_SNAPSHOT.resolvedTheme,
   );
-  return previewAppearance ?? resolvedTheme;
 }
 
 export function setTheme(next: Theme): boolean {

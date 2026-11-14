@@ -126,6 +126,9 @@ vi.mock(import("./ProjectActionsSettings"), async (original) => ({
   ...(await original()),
   ProjectActionsSettings: (() => null) as never,
 }));
+vi.mock(import("./ProjectThemeSettings"), () => ({
+  ProjectThemeSettings: () => <></>,
+}));
 
 vi.mock(import("../files/projectFilesQueryState"), async (original) => ({
   ...(await original()),

@@ -6,6 +6,7 @@ import { queuedRunEditBlockedReason } from "@t3tools/client-runtime/queued-run-e
 import { ScrollToEndButton, WorkspaceFileDropOverlay } from "./chat/TimelineOverlays";
 import { usePasteToFocusComposer } from "./chat/usePasteToFocusComposer";
 import { useFocusComposerOnThreadOpen } from "./chat/useFocusComposerOnThreadOpen";
+import { useProjectTheme } from "../hooks/useProjectTheme";
 import { configuredHostedAppUrl } from "../hostedPairing";
 import {
   announcedRun,
@@ -164,7 +165,7 @@ import { type LegendListRef } from "@legendapp/list/react";
 import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
 import { DEFAULT_INTERACTION_MODE, type ChatMessage } from "../types";
 import { buildThreadRouteParams } from "../threadRoutes";
-import { useTheme } from "../hooks/useTheme";
+import { useRenderedAppearance } from "../hooks/useTheme";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { subscribeSnapShotComposerFocus } from "../lib/desktopSnapShot";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -604,7 +605,7 @@ export default function ChatView(props: ChatViewProps) {
   ) as AssistantCitationRequest | null;
   useSideChatCitationReveal(embedded ? null : routeThreadRef, locationCitation, citationActivation);
   const citationHistory = useCitedHistory(citationRequest);
-  const { resolvedTheme } = useTheme();
+  const resolvedTheme = useRenderedAppearance();
   const composerRuntimeMode = useComposerDraftStore(
     (store) => store.getComposerDraft(composerDraftTarget)?.runtimeMode ?? null,
   );
@@ -832,6 +833,11 @@ export default function ChatView(props: ChatViewProps) {
     : undefined;
   const isServerThread = serverThread !== null;
   const activeThread = isServerThread ? serverThread : localDraftThread;
+  const threadProjectDefaults = resolveProjectSettings(
+    settings,
+    activeThread?.projectId ?? null,
+  ).settings;
+  useProjectTheme(activeThread ? threadProjectDefaults.projectTheme : null, { enabled: !embedded });
   const serverLatestRun =
     serverProjection === null ? null : deriveLatestThreadRun(serverProjection);
   const serverActivityRun =
@@ -973,8 +979,7 @@ export default function ChatView(props: ChatViewProps) {
   const [, setThreadErrorBannerDismissTick] = useState(0);
   const threadErrorIsServerRuntimeError =
     localServerError === null && visibleThreadError === serverRuntime?.lastError;
-  const defaultRuntimeMode = resolveProjectSettings(settings, activeThread?.projectId ?? null)
-    .settings.defaultRuntimeMode;
+  const defaultRuntimeMode = threadProjectDefaults.defaultRuntimeMode;
   const runtimeMode =
     composerRuntimeMode ??
     (isServerThread ? activeThread?.runtimeMode : undefined) ??

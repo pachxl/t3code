@@ -1168,7 +1168,20 @@ export const WorktreeCleanup = Schema.NullOr(
 );
 export type WorktreeCleanup = typeof WorktreeCleanup.Type;
 
+export const ProjectTheme = Schema.Struct({
+  theme: DefaultThemePreference,
+  appearanceMode: Schema.Literals(["system", "light", "dark"]),
+  themeHalves: Schema.NullOr(
+    Schema.Struct({
+      light: Schema.optionalKey(DefaultThemePreference),
+      dark: Schema.optionalKey(DefaultThemePreference),
+    }),
+  ),
+});
+export type ProjectTheme = typeof ProjectTheme.Type;
+
 export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
+  "projectTheme",
   "worktreeCleanup",
   "defaultModelSelection",
   "defaultRuntimeMode",
@@ -1207,6 +1220,7 @@ export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOver
 /** Absent keys inherit; null is a value for nullable settings.
  * providerInstances overrides fields per instance; other keys replace the whole setting. */
 export const ProjectSettingsOverrides = Schema.Struct({
+  projectTheme: Schema.optionalKey(Schema.NullOr(ProjectTheme)),
   worktreeCleanup: Schema.optionalKey(WorktreeCleanup),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
@@ -1259,6 +1273,7 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
     [K in ProjectScopedServerSettingKey]: null extends ProjectSettingsOverrides[K] ? K : never;
   }[ProjectScopedServerSettingKey]
 >([
+  "projectTheme",
   "defaultModelSelection",
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
@@ -1432,6 +1447,7 @@ export const ServerSettings = Schema.Struct({
     ProjectId,
     keepUnknownOverrideKeys(ProjectSettingsOverrides),
   ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  projectTheme: Schema.NullOr(ProjectTheme).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   /** Fold once so restarts cannot undo later UI resets. */
   projectSettingsFolded: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 
@@ -1791,6 +1807,7 @@ const ModelSelectionPatch = Schema.Struct({
 });
 
 export const ServerSettingsPatch = Schema.Struct({
+  projectTheme: Schema.optionalKey(Schema.NullOr(ProjectTheme)),
   setModelFavorites: Schema.optionalKey(
     Schema.Array(Schema.Struct({ ...ModelFavorite.fields, favorite: Schema.Boolean })),
   ),

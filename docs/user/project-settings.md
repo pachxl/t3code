@@ -46,6 +46,19 @@ Settings that are environment-wide stay read-only while a project is selected. W
 targets disagree, a control shows **Mixed** until you choose one value. Appearance, keyboard,
 and other phone-only settings ignore the filter.
 
+## Project themes
+
+On web and desktop, open **Settings → Projects**, select a project, and turn off
+**Use global theme** in **Project theme**. Choose its appearance and theme using the
+same previews as Appearance settings, including separate light and dark palettes.
+Opening a thread automatically applies its project's theme. Projects using the
+global theme keep your normal Appearance preference. Turn **Use global theme**
+back on to remove the override.
+
+Project selections are saved on their selected environments. Custom themes must
+also be available on each client; unavailable palettes fall back to the global theme.
+Mobile keeps its separate phone appearance settings.
+
 ## Pin and archive projects
 
 Pinned projects come first in the project pickers: the project picker on a new thread, the

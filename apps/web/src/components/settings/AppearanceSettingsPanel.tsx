@@ -21,6 +21,7 @@ import {
 import { useCustomThemes } from "../../hooks/useCustomThemes";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { useTheme } from "../../hooks/useTheme";
+import { useProjectTheme } from "../../hooks/useProjectTheme";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
@@ -85,6 +86,7 @@ const EFFORT_DISPLAY_LABELS: Record<EffortDisplay, string> = {
 };
 
 export function AppearanceSettingsPanel() {
+  useProjectTheme(null, { preview: true });
   const {
     appearanceMode,
     refreshTheme,
