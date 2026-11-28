@@ -61,9 +61,8 @@ jobs:
           git push origin HEAD:main
           raw=${upstream#v}
           version="${raw%.*}.$(( ${raw##*.} * 1000000 + GITHUB_RUN_NUMBER ))"
-          git tag "v$version" "$ref"
-          git push origin "refs/tags/v$version"
-          gh release create "v$version" --repo "$GITHUB_REPOSITORY" --verify-tag --draft --prerelease --title "T3 Code fork $version" --notes "Upstream nightly: $upstream. Fork source: $ref. Build in progress."
+          # The updater reads releases.atom, which lists bare tags; publishing the draft creates the tag.
+          gh release create "v$version" --repo "$GITHUB_REPOSITORY" --target "$ref" --draft --prerelease --title "T3 Code fork $version" --notes "Upstream nightly: $upstream. Fork source: $ref. Build in progress."
           echo 'build=true' >> "$GITHUB_OUTPUT"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -144,12 +143,12 @@ jobs:
       - name: Enable production Connect public configuration
         shell: pwsh
         run: Copy-Item .env.example .env
+      # bash: on a Vite+ cache hit, setup-ci-deps puts an MSYS path on PATH that only bash resolves.
       - name: Package Windows installer with fork updater
-        shell: pwsh
+        shell: bash
         run: |
-          $archive = (Get-ChildItem wsl-runtime/*.tar.gz).FullName
-          node scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64 --build-version $env:APP_VERSION --output-dir release --wsl-runtime $archive --verbose
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          archive=$(cygpath -aw wsl-runtime/*.tar.gz)
+          node scripts/build-desktop-artifact.ts --platform win --target nsis --arch x64 --build-version "$APP_VERSION" --output-dir release --wsl-runtime "$archive" --verbose
       - name: Publish only a complete successful build
         shell: pwsh
         env:
